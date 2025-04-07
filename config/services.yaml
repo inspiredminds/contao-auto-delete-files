@@ -1,0 +1,11 @@
+services:
+    _defaults:
+        autoconfigure: true
+        autowire: true
+        bind:
+            $projectDir: '%kernel.project_dir%'
+            $uploadPath: '%contao.upload_path%'
+
+    InspiredMinds\ContaoAutoDeleteFiles\:
+        resource: ../src
+        exclude: ../src/{ContaoManager,DependencyInjection,ContaoAutoDeleteFilesBundle.php}
