@@ -43,7 +43,8 @@ class DeleteFilesCronjob
         foreach ($folders as $folder) {
             $setting = StringUtil::deserialize($folder['autoDeleteFilesTime'], true);
 
-            if ('' === ($setting['value'] ?? '') || !($setting['unit'] ?? null)) {
+            // Ignore an empty value or unit
+            if (!($setting['value'] ?? null) || !($setting['unit'] ?? null)) {
                 continue;
             }
 
@@ -74,7 +75,7 @@ class DeleteFilesCronjob
 
                 foreach ($filesToDelete as $file) {
                     $this->filesStorage->delete($file->getPath());
-                    $this->contaoCronLogger->info(\sprintf('Automatically deleted "%s" due to time retention rule.', Path::join($this->uploadPath, $file->getPath())));
+                    $this->contaoCronLogger->info(\sprintf('Deleted "%s" due to time retention rule.', Path::join($this->uploadPath, $file->getPath())));
                 }
             } finally {
                 $lock->release();
@@ -87,6 +88,11 @@ class DeleteFilesCronjob
         $folders = $this->db->fetchAllAssociative("SELECT * FROM tl_files WHERE type = 'folder' AND autoDeleteFilesCount != ''");
 
         foreach ($folders as $folder) {
+            // Ignore an empty or zero retention
+            if (!$retention = (int) $folder['autoDeleteFilesCount']) {
+                continue;
+            }
+
             $lock = $this->lockFactory->createLock('delete-files-'.md5(Path::join($this->projectDir, $folder['path'])));
 
             // Another process is already deleting files in this directory, so skip for now
@@ -95,8 +101,6 @@ class DeleteFilesCronjob
             }
 
             try {
-                $retention = (int) $folder['autoDeleteFilesCount'];
-
                 $files = $this->filesStorage
                     ->listContents(Path::makeRelative($folder['path'], $this->uploadPath), accessFlags: VirtualFilesystemInterface::BYPASS_DBAFS)
                     ->files()
@@ -111,7 +115,7 @@ class DeleteFilesCronjob
 
                 for ($i = $retention; $i < \count($files); ++$i) {
                     $this->filesStorage->delete($files[$i]->getPath());
-                    $this->contaoCronLogger->info(\sprintf('Automatically deleted "%s" due to count retention rule.', Path::join($this->uploadPath, $files[$i]->getPath())));
+                    $this->contaoCronLogger->info(\sprintf('Deleted "%s" due to count retention rule.', Path::join($this->uploadPath, $files[$i]->getPath())));
                 }
             } finally {
                 $lock->release();
